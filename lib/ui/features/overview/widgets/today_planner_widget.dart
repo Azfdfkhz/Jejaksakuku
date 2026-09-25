@@ -5,6 +5,7 @@ import 'package:jejak_saku/ui/core/theme/app_colors.dart';
 import 'package:jejak_saku/ui/features/overview/view_models/overview_view_model.dart';
 import 'package:jejak_saku/ui/core/widgets/add_task_dialog.dart';
 import 'package:jejak_saku/domain/models/models.dart';
+import 'package:jejak_saku/ui/core/utils/date_format_id.dart';
 
 class TodayPlannerWidget extends StatelessWidget {
   const TodayPlannerWidget({super.key});
@@ -76,7 +77,7 @@ class TodayPlannerWidget extends StatelessWidget {
                         const Icon(Icons.calendar_today_outlined, size: 13, color: AppColors.textSecondary),
                         const SizedBox(width: 6),
                         Text(
-                          'Kamis, 25 September 2026',
+                          DateFormatId.full(vm.selectedDate),
                           style: GoogleFonts.plusJakartaSans(
                             fontSize: 12,
                             fontWeight: FontWeight.w500,
@@ -663,12 +664,15 @@ class TodayPlannerWidget extends StatelessWidget {
   }
 
   Widget _buildMonthTimeline(BuildContext context, OverviewViewModel vm) {
+    final month = vm.selectedDate;
+    final daysInMonth = DateTime(month.year, month.month + 1, 0).day;
+    final now = DateTime.now();
     return Padding(
       padding: const EdgeInsets.all(16),
       child: Column(
         children: [
           Text(
-            'September 2026',
+            DateFormatId.monthYear(month),
             style: GoogleFonts.plusJakartaSans(fontSize: 14, fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 16),
@@ -681,10 +685,10 @@ class TodayPlannerWidget extends StatelessWidget {
               mainAxisSpacing: 4,
               childAspectRatio: 1.2,
             ),
-            itemCount: 30,
+            itemCount: daysInMonth,
             itemBuilder: (ctx, idx) {
               final day = idx + 1;
-              final isToday = day == 25;
+              final isToday = day == now.day && month.month == now.month && month.year == now.year;
               return Container(
                 decoration: BoxDecoration(
                   color: isToday ? AppColors.primary.withValues(alpha: 0.1) : AppColors.background,

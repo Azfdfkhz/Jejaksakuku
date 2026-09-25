@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+import 'package:intl/date_symbol_data_local.dart';
 import 'package:jejak_saku/ui/core/theme/app_theme.dart';
 import 'package:jejak_saku/ui/core/widgets/app_shell.dart';
 import 'package:jejak_saku/ui/core/widgets/search_dialog.dart';
@@ -18,7 +19,11 @@ import 'package:jejak_saku/ui/features/reports/views/reports_page.dart';
 import 'package:jejak_saku/ui/features/presentation/views/presentation_page.dart';
 import 'package:jejak_saku/ui/features/settings/views/settings_page.dart';
 
-void main() {
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  // Wajib di-init sebelum DateFormat('...', 'id_ID') dipakai di mana pun,
+  // kalau tidak semua tanggal akan throw LocaleDataException.
+  await initializeDateFormatting('id_ID', null);
   runApp(const JejakSakuApp());
 }
 

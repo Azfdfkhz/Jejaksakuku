@@ -4,6 +4,7 @@ import 'package:jejak_saku/ui/core/theme/app_colors.dart';
 import 'package:jejak_saku/ui/core/widgets/search_dialog.dart';
 import 'package:jejak_saku/ui/core/widgets/mobile_companion_sheet.dart';
 import 'package:jejak_saku/ui/core/widgets/sync_management_dialog.dart';
+import 'package:jejak_saku/ui/core/utils/date_format_id.dart';
 
 class TopBar extends StatelessWidget {
   final String title;
@@ -218,7 +219,7 @@ class TopBar extends StatelessWidget {
                 ),
                 const SizedBox(width: 8),
                 Text(
-                  'Kamis, 25 September 2026',
+                  DateFormatId.full(DateTime.now()),
                   style: GoogleFonts.plusJakartaSans(
                     fontSize: 13,
                     fontWeight: FontWeight.w500,

@@ -5,6 +5,7 @@ import 'package:jejak_saku/ui/core/theme/app_colors.dart';
 import 'package:jejak_saku/ui/features/overview/view_models/overview_view_model.dart';
 import 'package:jejak_saku/domain/models/models.dart';
 import 'package:jejak_saku/ui/core/widgets/quick_capture_dialog.dart';
+import 'package:jejak_saku/ui/core/utils/date_format_id.dart';
 
 class ActivitiesPage extends StatefulWidget {
   const ActivitiesPage({super.key});
@@ -259,7 +260,7 @@ class _ActivitiesPageState extends State<ActivitiesPage> {
                     const Icon(Icons.access_time, size: 12, color: AppColors.textSecondary),
                     const SizedBox(width: 4),
                     Text(
-                      '$startStr - $endStr (25 Sep 2026)',
+                      '$startStr - $endStr (${DateFormatId.shortDate(act.startTime)})',
                       style: GoogleFonts.plusJakartaSans(fontSize: 11, color: AppColors.textSecondary),
                     ),
                   ],

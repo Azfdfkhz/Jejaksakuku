@@ -5,6 +5,7 @@ import 'package:jejak_saku/ui/core/theme/app_colors.dart';
 import 'package:jejak_saku/ui/features/overview/view_models/overview_view_model.dart';
 import 'package:jejak_saku/domain/models/models.dart';
 import 'package:jejak_saku/ui/core/widgets/quick_capture_dialog.dart';
+import 'package:jejak_saku/ui/core/utils/date_format_id.dart';
 
 class LearningNotesPage extends StatelessWidget {
   const LearningNotesPage({super.key});
@@ -158,7 +159,7 @@ class LearningNotesPage extends StatelessWidget {
                   border: Border.all(color: AppColors.border),
                 ),
                 child: Text(
-                  '25 September 2026',
+                  DateFormatId.longNoDay(note.createdAt),
                   style: GoogleFonts.plusJakartaSans(fontSize: 10, color: AppColors.textSecondary),
                 ),
               ),

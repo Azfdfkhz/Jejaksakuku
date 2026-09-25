@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:provider/provider.dart';
 import 'package:jejak_saku/ui/core/theme/app_colors.dart';
+import 'package:jejak_saku/ui/features/overview/view_models/overview_view_model.dart';
 
 class Sidebar extends StatelessWidget {
   final int selectedIndex;
@@ -12,8 +14,24 @@ class Sidebar extends StatelessWidget {
     required this.onItemSelected,
   });
 
+  /// Inisial dari nama asli user, mis. "Rizky Pratama" → "RP".
+  /// Kalau profil belum diisi, tampilkan "?" alih-alih inisial contoh.
+  String _initialsOf(String name) {
+    final parts = name.trim().split(RegExp(r'\s+')).where((p) => p.isNotEmpty).toList();
+    if (parts.isEmpty) return '?';
+    if (parts.length == 1) return parts.first.substring(0, 1).toUpperCase();
+    return (parts.first.substring(0, 1) + parts.last.substring(0, 1)).toUpperCase();
+  }
+
   @override
   Widget build(BuildContext context) {
+    final vm = context.watch<OverviewViewModel>();
+    final hasProfile = vm.hasProfile;
+    final displayName = hasProfile ? vm.userName : 'Profil belum diisi';
+    final displayRole = hasProfile
+        ? [vm.userRole, vm.userCompany].where((s) => s.trim().isNotEmpty).join(' - ')
+        : 'Lengkapi di Settings';
+
     return Container(
       width: 240,
       decoration: const BoxDecoration(
@@ -123,7 +141,8 @@ class Sidebar extends StatelessWidget {
 
           const Divider(height: 1, color: AppColors.border),
 
-          // User Profile Card at bottom (RP - Rizky Pratama)
+          // User Profile Card at bottom — data asli dari OverviewViewModel,
+          // sinkron dengan yang diisi user di halaman Settings.
           Padding(
             padding: const EdgeInsets.all(16.0),
             child: Row(
@@ -135,7 +154,7 @@ class Sidebar extends StatelessWidget {
                       radius: 18,
                       backgroundColor: AppColors.primary.withValues(alpha: 0.15),
                       child: Text(
-                        'RP',
+                        _initialsOf(vm.userName),
                         style: GoogleFonts.plusJakartaSans(
                           fontWeight: FontWeight.bold,
                           fontSize: 13,
@@ -164,7 +183,7 @@ class Sidebar extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'Rizky Pratama',
+                        displayName,
                         style: GoogleFonts.plusJakartaSans(
                           fontWeight: FontWeight.w600,
                           fontSize: 13,
@@ -174,11 +193,13 @@ class Sidebar extends StatelessWidget {
                         overflow: TextOverflow.ellipsis,
                       ),
                       Text(
-                        'SMK RPL - PKL',
+                        displayRole,
                         style: GoogleFonts.plusJakartaSans(
                           fontSize: 11,
                           color: AppColors.textSecondary,
                         ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
                       Row(
                         children: [
