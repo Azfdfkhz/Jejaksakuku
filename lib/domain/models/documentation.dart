@@ -2,7 +2,7 @@ import 'package:uuid/uuid.dart';
 
 class Documentation {
   final String id;
-  final String activityId;
+  final String? activityId;
   final String imagePath;
   final String description;
   final DateTime date;
@@ -12,7 +12,7 @@ class Documentation {
 
   Documentation({
     String? id,
-    required this.activityId,
+    this.activityId,
     required this.imagePath,
     this.description = '',
     required this.date,

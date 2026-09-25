@@ -1,8 +1,10 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import 'package:jejak_saku/ui/core/theme/app_colors.dart';
 import 'package:jejak_saku/ui/features/overview/view_models/overview_view_model.dart';
+import 'package:jejak_saku/data/services/documentation_storage_service.dart';
 import 'package:jejak_saku/domain/models/models.dart';
 
 class DocumentationPage extends StatefulWidget {
@@ -123,6 +125,22 @@ class _DocumentationPageState extends State<DocumentationPage> {
     );
   }
 
+  Widget _brokenImagePlaceholder() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.image_not_supported_outlined, size: 32, color: AppColors.textSecondary),
+          const SizedBox(height: 6),
+          Text(
+            'File belum tersedia di device ini',
+            style: GoogleFonts.plusJakartaSans(fontSize: 10, color: AppColors.textSecondary),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildPhotoCard(Documentation doc) {
     return Container(
       decoration: BoxDecoration(
@@ -133,7 +151,9 @@ class _DocumentationPageState extends State<DocumentationPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Simulated image preview with realistic mock diagram
+          // Preview gambar asli dari file yang tersimpan di disk.
+          // Jika file tidak ditemukan (misal belum sync dari device lain),
+          // tampilkan empty/broken state yang jujur, bukan gambar palsu.
           Expanded(
             child: Container(
               decoration: BoxDecoration(
@@ -142,21 +162,16 @@ class _DocumentationPageState extends State<DocumentationPage> {
               ),
               child: Stack(
                 children: [
-                  Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(
-                          doc.tags.contains('Meeting') ? Icons.groups_rounded : Icons.dashboard_customize_rounded,
-                          size: 38,
-                          color: AppColors.primaryLight,
-                        ),
-                        const SizedBox(height: 6),
-                        Text(
-                          doc.imagePath,
-                          style: GoogleFonts.plusJakartaSans(fontSize: 11, color: AppColors.textSecondary),
-                        ),
-                      ],
+                  Positioned.fill(
+                    child: ClipRRect(
+                      borderRadius: const BorderRadius.vertical(top: Radius.circular(11)),
+                      child: DocumentationStorageService.fileExists(doc.imagePath)
+                          ? Image.file(
+                              File(doc.imagePath),
+                              fit: BoxFit.cover,
+                              errorBuilder: (_, __, ___) => _brokenImagePlaceholder(),
+                            )
+                          : _brokenImagePlaceholder(),
                     ),
                   ),
                   Positioned(
@@ -222,98 +237,143 @@ class _DocumentationPageState extends State<DocumentationPage> {
   void _showAddDocumentationDialog(BuildContext context, OverviewViewModel vm) {
     final descCtrl = TextEditingController();
     final tagCtrl = TextEditingController();
+    File? pickedFile;
+    bool isSaving = false;
 
     showDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        title: Text(
-          'Tambah Foto Dokumentasi',
-          style: GoogleFonts.plusJakartaSans(fontSize: 16, fontWeight: FontWeight.bold),
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Container(
-              height: 120,
-              width: double.infinity,
-              decoration: BoxDecoration(
-                color: AppColors.background,
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: AppColors.border, style: BorderStyle.solid),
-              ),
-              child: Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    const Icon(Icons.cloud_upload_outlined, size: 28, color: AppColors.primary),
-                    const SizedBox(height: 6),
-                    Text(
-                      'Pilih file foto atau seret ke sini',
-                      style: GoogleFonts.plusJakartaSans(fontSize: 12, color: AppColors.textSecondary),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: descCtrl,
-              decoration: InputDecoration(
-                hintText: 'Deskripsi dokumentasi...',
-                hintStyle: GoogleFonts.plusJakartaSans(fontSize: 12),
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-              ),
-            ),
-            const SizedBox(height: 8),
-            TextField(
-              controller: tagCtrl,
-              decoration: InputDecoration(
-                hintText: 'Tags (pisahkan koma: Frontend, PKL)',
-                hintStyle: GoogleFonts.plusJakartaSans(fontSize: 12),
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: Text('Batal', style: GoogleFonts.plusJakartaSans(color: AppColors.textSecondary)),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              if (descCtrl.text.isNotEmpty) {
-                final tags = tagCtrl.text
-                    .split(',')
-                    .map((t) => t.trim())
-                    .where((t) => t.isNotEmpty)
-                    .toList();
-                final doc = Documentation(
-                  activityId: 'a1',
-                  imagePath: 'assets/uploaded_doc_${DateTime.now().millisecondsSinceEpoch}.png',
-                  description: descCtrl.text.trim(),
-                  date: vm.selectedDate,
-                  time: DateTime.now(),
-                  tags: tags.isEmpty ? ['PKL'] : tags,
-                );
-                vm.addDocumentation(doc);
-                Navigator.pop(ctx);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('✓ Dokumentasi berhasil disimpan!'), behavior: SnackBarBehavior.floating),
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) {
+          Future<void> pickImage() async {
+            try {
+              final result = await DocumentationStorageService.pickImageFile();
+              if (result != null) {
+                setDialogState(() => pickedFile = result);
+              }
+            } catch (e) {
+              if (ctx.mounted) {
+                ScaffoldMessenger.of(ctx).showSnackBar(
+                  SnackBar(content: Text('Gagal membuka pemilih foto: $e')),
                 );
               }
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.primary,
-              foregroundColor: Colors.white,
+            }
+          }
+
+          return AlertDialog(
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            title: Text(
+              'Tambah Foto Dokumentasi',
+              style: GoogleFonts.plusJakartaSans(fontSize: 16, fontWeight: FontWeight.bold),
             ),
-            child: Text('Simpan', style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w600)),
-          ),
-        ],
+            content: SizedBox(
+              width: 420,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  InkWell(
+                    onTap: pickImage,
+                    borderRadius: BorderRadius.circular(8),
+                    child: Container(
+                      height: 140,
+                      width: double.infinity,
+                      decoration: BoxDecoration(
+                        color: AppColors.background,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: AppColors.border),
+                      ),
+                      child: pickedFile != null
+                          ? ClipRRect(
+                              borderRadius: BorderRadius.circular(8),
+                              child: Image.file(pickedFile!, fit: BoxFit.cover, width: double.infinity, height: 140),
+                            )
+                          : Center(
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  const Icon(Icons.add_photo_alternate_outlined, size: 28, color: AppColors.primary),
+                                  const SizedBox(height: 6),
+                                  Text(
+                                    'Ketuk untuk pilih foto asli',
+                                    style: GoogleFonts.plusJakartaSans(fontSize: 12, color: AppColors.textSecondary),
+                                  ),
+                                ],
+                              ),
+                            ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: descCtrl,
+                    decoration: InputDecoration(
+                      hintText: 'Deskripsi dokumentasi...',
+                      hintStyle: GoogleFonts.plusJakartaSans(fontSize: 12),
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: tagCtrl,
+                    decoration: InputDecoration(
+                      hintText: 'Tags (pisahkan koma: Frontend, PKL)',
+                      hintStyle: GoogleFonts.plusJakartaSans(fontSize: 12),
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: Text('Batal', style: GoogleFonts.plusJakartaSans(color: AppColors.textSecondary)),
+              ),
+              ElevatedButton(
+                onPressed: (pickedFile == null || isSaving)
+                    ? null
+                    : () async {
+                        setDialogState(() => isSaving = true);
+                        try {
+                          final savedPath = await DocumentationStorageService.saveImageFile(pickedFile!);
+                          final tags = tagCtrl.text
+                              .split(',')
+                              .map((t) => t.trim())
+                              .where((t) => t.isNotEmpty)
+                              .toList();
+                          final doc = Documentation(
+                            imagePath: savedPath,
+                            description: descCtrl.text.trim(),
+                            date: vm.selectedDate,
+                            time: DateTime.now(),
+                            tags: tags,
+                          );
+                          vm.addDocumentation(doc);
+                          if (ctx.mounted) Navigator.pop(ctx);
+                          if (context.mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(content: Text('✓ Foto dokumentasi tersimpan ke disk.'), behavior: SnackBarBehavior.floating),
+                            );
+                          }
+                        } catch (e) {
+                          setDialogState(() => isSaving = false);
+                          if (ctx.mounted) {
+                            ScaffoldMessenger.of(ctx).showSnackBar(
+                              SnackBar(content: Text('Gagal menyimpan foto: $e')),
+                            );
+                          }
+                        }
+                      },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.primary,
+                  foregroundColor: Colors.white,
+                ),
+                child: Text(isSaving ? 'Menyimpan...' : 'Simpan', style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w600)),
+              ),
+            ],
+          );
+        },
       ),
     );
   }

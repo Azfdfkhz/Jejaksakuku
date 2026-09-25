@@ -193,10 +193,15 @@ class UnscheduledTasksWidget extends StatelessWidget {
               if (val == 'schedule') {
                 showDialog(
                   context: context,
-                  builder: (ctx) => AddTaskDialog(
-                    initialStartTime: DateTime(2026, 9, 25, 14, 0),
-                    initialEndTime: DateTime(2026, 9, 25, 15, 30),
-                  ),
+                  builder: (ctx) {
+                    final d = vm.selectedDate;
+                    final now = DateTime.now();
+                    final base = DateTime(d.year, d.month, d.day, now.hour, now.minute);
+                    return AddTaskDialog(
+                      initialStartTime: base,
+                      initialEndTime: base.add(const Duration(hours: 1)),
+                    );
+                  },
                 );
               }
             },

@@ -36,28 +36,39 @@ class OverviewViewModel extends ChangeNotifier {
   PlannerViewMode _plannerViewMode = PlannerViewMode.hari;
   PlannerViewMode get plannerViewMode => _plannerViewMode;
 
-  DateTime _selectedDate = DateTime(2026, 9, 25);
+  static DateTime _todayDateOnly() {
+    final now = DateTime.now();
+    return DateTime(now.year, now.month, now.day);
+  }
+
+  DateTime _selectedDate = _todayDateOnly();
   DateTime get selectedDate => _selectedDate;
 
   bool _isLoading = false;
   bool get isLoading => _isLoading;
 
+  String? _loadError;
+  String? get loadError => _loadError;
+
   // ── User Profile ───────────────────────────────────────
 
-  String _userName = 'Rizky Pratama';
+  String _userName = '';
   String get userName => _userName;
 
-  String _userRole = 'SMK RPL - PKL';
+  String _userRole = '';
   String get userRole => _userRole;
 
-  String _userCompany = 'PT Solusi Teknologi Nusantara';
+  String _userCompany = '';
   String get userCompany => _userCompany;
 
-  String _userMentor = 'Hendra Wijaya, S.Kom';
+  String _userMentor = '';
   String get userMentor => _userMentor;
 
+  /// Apakah user sudah mengisi identitas asli mereka sendiri.
+  bool get hasProfile => _userName.trim().isNotEmpty;
+
   String get userStatus => 'Online';
-  String get greetingName => _userName.split(' ').first;
+  String get greetingName => _userName.trim().isEmpty ? 'Pengguna' : _userName.split(' ').first;
 
   String get greeting {
     final hour = DateTime.now().hour;
@@ -118,14 +129,12 @@ class OverviewViewModel extends ChangeNotifier {
 
   // ── Learning Progress Map ──────────────────────────────
 
+  /// Progress belajar nyata dari [_learningGoals]. Mengembalikan map kosong
+  /// jika belum ada goal — UI wajib menampilkan empty state, bukan angka
+  /// contoh (lihat jejaksaku.md #1: no hardcoded statistics).
   Map<String, double> get learningProgress {
     if (_learningGoals.isEmpty) {
-      return {
-        'Next.js': 0.70,
-        'Flutter': 0.50,
-        'UI/UX': 0.60,
-        'Blender': 0.30,
-      };
+      return {};
     }
     final map = <String, double>{};
     for (final g in _learningGoals) {
@@ -205,11 +214,7 @@ class OverviewViewModel extends ChangeNotifier {
     notifyListeners();
   }
 
-  void resetToDefaultData() {
-    _loadSampleData();
-    _persist();
-    notifyListeners();
-  }
+
 
   // ── View Mode Setter ───────────────────────────────────
 
@@ -229,7 +234,7 @@ class OverviewViewModel extends ChangeNotifier {
   }
 
   void goToToday() {
-    _selectedDate = DateTime(2026, 9, 25);
+    _selectedDate = _todayDateOnly();
     notifyListeners();
   }
 
@@ -471,6 +476,7 @@ class OverviewViewModel extends ChangeNotifier {
 
   Future<void> loadOverviewData() async {
     _isLoading = true;
+    _loadError = null;
     notifyListeners();
 
     try {
@@ -505,286 +511,21 @@ class OverviewViewModel extends ChangeNotifier {
           _userCompany = prof['userCompany'] ?? _userCompany;
           _userMentor = prof['userMentor'] ?? _userMentor;
         }
-      } else {
-        _loadSampleData();
-        _persist();
       }
-    } catch (_) {
-      _loadSampleData();
+      // Jika `saved == null` (belum pernah ada data tersimpan), semua list
+      // tetap pada nilai default kosong yang dideklarasikan di atas —
+      // ditampilkan sebagai empty state asli, bukan data contoh.
+    } catch (e) {
+      // Gagal membaca storage lokal (file korup, dsb). Jangan diam-diam
+      // isi data palsu — tampilkan error state yang jujur agar user tahu
+      // dan bisa retry (lihat jejaksaku.md #2: error & retry state).
+      _loadError = 'Gagal memuat data lokal: $e';
     } finally {
       _isLoading = false;
       notifyListeners();
     }
   }
 
-  void _loadSampleData() {
-    final now = _selectedDate;
-    final today = DateTime(now.year, now.month, now.day);
-
-    _todayTasks = [
-      Task(
-        id: 't1',
-        title: 'PKL - Membuat Dashboard Website',
-        description: 'Membangun komponen overview dashboard dengan Flutter dan Next.js',
-        category: TaskCategory.pkl,
-        status: TaskStatus.completed,
-        tags: ['Frontend', 'Next.js'],
-      ),
-      Task(
-        id: 't2',
-        title: 'Meeting Pembimbing',
-        description: 'Diskusi progress mingguan proyek PKL bersama pembimbing industri',
-        category: TaskCategory.pkl,
-        status: TaskStatus.inProgress,
-        tags: ['Meeting'],
-      ),
-      Task(
-        id: 't3',
-        title: 'Revisi Website',
-        description: 'Perbaikan layout responsive dan penyesuaian styling Tailwind',
-        category: TaskCategory.pkl,
-        status: TaskStatus.completed,
-        tags: ['Frontend', 'Tailwind'],
-      ),
-      Task(
-        id: 't4',
-        title: 'Belajar Next.js',
-        description: 'Eksplorasi Server Components dan App Router',
-        category: TaskCategory.learning,
-        status: TaskStatus.scheduled,
-        tags: ['Learning'],
-      ),
-      Task(
-        id: 't5',
-        title: 'Review Dokumentasi',
-        description: 'Mengecek kelengkapan foto dan logbook PKL',
-        category: TaskCategory.pkl,
-        status: TaskStatus.scheduled,
-        tags: ['PKL'],
-      ),
-    ];
-
-    _todaySchedules = [
-      Schedule(
-        id: 's1',
-        taskId: 't1',
-        date: today,
-        startTime: DateTime(now.year, now.month, now.day, 8, 0),
-        endTime: DateTime(now.year, now.month, now.day, 10, 30),
-      ),
-      Schedule(
-        id: 's2',
-        taskId: 't2',
-        date: today,
-        startTime: DateTime(now.year, now.month, now.day, 11, 0),
-        endTime: DateTime(now.year, now.month, now.day, 12, 0),
-      ),
-      Schedule(
-        id: 's3',
-        taskId: 't3',
-        date: today,
-        startTime: DateTime(now.year, now.month, now.day, 13, 0),
-        endTime: DateTime(now.year, now.month, now.day, 15, 0),
-      ),
-      Schedule(
-        id: 's4',
-        taskId: 't4',
-        date: today,
-        startTime: DateTime(now.year, now.month, now.day, 19, 0),
-        endTime: DateTime(now.year, now.month, now.day, 20, 0),
-      ),
-    ];
-
-    _unscheduledTasks = [
-      Task(
-        id: 'u1',
-        title: 'Revisi Homepage',
-        category: TaskCategory.pkl,
-        status: TaskStatus.unscheduled,
-        tags: ['PKL', 'Frontend'],
-      ),
-      Task(
-        id: 'u2',
-        title: 'Belajar Flutter',
-        category: TaskCategory.learning,
-        status: TaskStatus.unscheduled,
-        tags: ['Learning', 'Mobile'],
-      ),
-      Task(
-        id: 'u3',
-        title: 'Dokumentasi Project',
-        category: TaskCategory.pkl,
-        status: TaskStatus.unscheduled,
-        tags: ['PKL', 'Dokumentasi'],
-      ),
-      Task(
-        id: 'u4',
-        title: 'Buat Laporan Mingguan',
-        category: TaskCategory.pkl,
-        status: TaskStatus.unscheduled,
-        tags: ['Report', 'Administrasi'],
-      ),
-      Task(
-        id: 'u5',
-        title: 'Backup Data',
-        category: TaskCategory.personal,
-        status: TaskStatus.unscheduled,
-        tags: ['Sistem', 'Maintenance'],
-      ),
-    ];
-
-    final tomorrow = today.add(const Duration(days: 1));
-    _upcomingSchedules = [
-      Schedule(
-        id: 'up1',
-        taskId: 't4',
-        date: today,
-        startTime: DateTime(now.year, now.month, now.day, 19, 0),
-        endTime: DateTime(now.year, now.month, now.day, 20, 0),
-      ),
-      Schedule(
-        id: 'up2',
-        taskId: 't5',
-        date: today,
-        startTime: DateTime(now.year, now.month, now.day, 21, 0),
-        endTime: DateTime(now.year, now.month, now.day, 22, 0),
-      ),
-      Schedule(
-        id: 'up3',
-        taskId: 't1',
-        date: tomorrow,
-        startTime: DateTime(tomorrow.year, tomorrow.month, tomorrow.day, 8, 0),
-        endTime: DateTime(tomorrow.year, tomorrow.month, tomorrow.day, 10, 0),
-      ),
-      Schedule(
-        id: 'up4',
-        taskId: 'u2',
-        date: tomorrow,
-        startTime: DateTime(tomorrow.year, tomorrow.month, tomorrow.day, 19, 0),
-        endTime: DateTime(tomorrow.year, tomorrow.month, tomorrow.day, 20, 0),
-      ),
-    ];
-
-    _recentActivities = [
-      Activity(
-        id: 'a1',
-        title: 'Membuat dashboard website',
-        description: 'Slicing UI dashboard dan implementasi data fetching',
-        date: today,
-        startTime: DateTime(now.year, now.month, now.day, 9, 0),
-        endTime: DateTime(now.year, now.month, now.day, 10, 30),
-        category: TaskCategory.pkl,
-        isCompleted: true,
-      ),
-      Activity(
-        id: 'a2',
-        title: 'Meeting dengan pembimbing',
-        description: 'Evaluasi mingguan dan review rancangan database',
-        date: today,
-        startTime: DateTime(now.year, now.month, now.day, 11, 0),
-        endTime: DateTime(now.year, now.month, now.day, 12, 0),
-        category: TaskCategory.pkl,
-        isCompleted: false,
-      ),
-      Activity(
-        id: 'a3',
-        title: 'Revisi tampilan website',
-        description: 'Perbaikan responsivitas layout tablet dan mobile',
-        date: today,
-        startTime: DateTime(now.year, now.month, now.day, 13, 0),
-        endTime: DateTime(now.year, now.month, now.day, 15, 0),
-        category: TaskCategory.pkl,
-        isCompleted: true,
-      ),
-      Activity(
-        id: 'a4',
-        title: 'Belajar Next.js',
-        description: 'Mempelajari implementasi Server Actions & Cache Revalidation',
-        date: today,
-        startTime: DateTime(now.year, now.month, now.day, 19, 0),
-        endTime: DateTime(now.year, now.month, now.day, 20, 0),
-        category: TaskCategory.learning,
-        isCompleted: false,
-      ),
-    ];
-
-    _documentationList = [
-      Documentation(
-        id: 'd1',
-        activityId: 'a1',
-        imagePath: 'assets/doc1.png',
-        description: 'Tampilan dashboard awal yang berhasil dislicing',
-        date: today,
-        time: DateTime(now.year, now.month, now.day, 10, 30),
-        tags: ['Frontend', 'Dashboard', 'PKL'],
-      ),
-      Documentation(
-        id: 'd2',
-        activityId: 'a2',
-        imagePath: 'assets/doc2.png',
-        description: 'Sesi bimbingan bersama mentor industri',
-        date: today,
-        time: DateTime(now.year, now.month, now.day, 11, 45),
-        tags: ['Meeting', 'Bimbingan'],
-      ),
-      Documentation(
-        id: 'd3',
-        activityId: 'a3',
-        imagePath: 'assets/doc3.png',
-        description: 'Inspeksi layout navbar pada mobile breakpoint',
-        date: today,
-        time: DateTime(now.year, now.month, now.day, 14, 20),
-        tags: ['CSS', 'Responsive'],
-      ),
-    ];
-
-    _learningGoals = [
-      LearningGoal(
-        id: 'g1',
-        title: 'Master Next.js App Router',
-        description: 'Server components, streaming, dynamic routes',
-        targetDate: today.add(const Duration(days: 30)),
-        progress: 0.70,
-      ),
-      LearningGoal(
-        id: 'g2',
-        title: 'Flutter Desktop & Mobile Development',
-        description: 'State management, custom paint, responsive layout',
-        targetDate: today.add(const Duration(days: 45)),
-        progress: 0.50,
-      ),
-      LearningGoal(
-        id: 'g3',
-        title: 'Prinsip UI/UX & Design System',
-        description: 'Typography, visual hierarchy, spacing, accessibility',
-        targetDate: today.add(const Duration(days: 20)),
-        progress: 0.60,
-      ),
-      LearningGoal(
-        id: 'g4',
-        title: 'Blender 3D Asset Modeling',
-        description: 'Low poly modeling dan export glTF',
-        targetDate: today.add(const Duration(days: 60)),
-        progress: 0.30,
-      ),
-    ];
-
-    _learningNotes = [
-      LearningNote(
-        id: 'n1',
-        sessionId: 's4',
-        content: 'Server Actions di Next.js dapat dipanggil langsung dari client component tanpa membuat API route manual.',
-      ),
-      LearningNote(
-        id: 'n2',
-        sessionId: 's4',
-        content: 'Gunakan `revalidatePath` untuk memperbarui cache halaman secara on-demand setelah mutasi data.',
-      ),
-      LearningNote(
-        id: 'n3',
-        sessionId: 's4',
-        content: 'Prinsip local-first: simpan semua interaksi ke SQLite lokal terlebih dahulu agar aplikasi tetap cepat & offline-ready.',
-      ),
-    ];
-  }
+  /// Alias eksplisit untuk tombol "Coba Lagi" di UI saat [loadError] terisi.
+  Future<void> retryLoad() => loadOverviewData();
 }

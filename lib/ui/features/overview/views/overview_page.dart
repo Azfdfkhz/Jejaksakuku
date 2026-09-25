@@ -88,32 +88,35 @@ class _OverviewPageState extends State<OverviewPage> {
                   style: GoogleFonts.plusJakartaSans(fontSize: 12, fontWeight: FontWeight.bold),
                 ),
                 const SizedBox(height: 8),
-                Row(
-                  children: [
-                    OutlinedButton.icon(
-                      onPressed: () {
-                        vm.clearAllData();
-                        Navigator.pop(ctx);
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Semua data contoh dibersihkan. Anda dapat mulai memasukkan data asli!'), behavior: SnackBarBehavior.floating),
-                        );
-                      },
-                      icon: const Icon(Icons.delete_sweep_outlined, size: 16, color: Colors.red),
-                      label: const Text('Mulai Data Kosong', style: TextStyle(color: Colors.red)),
-                    ),
-                    const SizedBox(width: 10),
-                    OutlinedButton.icon(
-                      onPressed: () {
-                        vm.resetToDefaultData();
-                        Navigator.pop(ctx);
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Data contoh berhasil dimuat ulang.'), behavior: SnackBarBehavior.floating),
-                        );
-                      },
-                      icon: const Icon(Icons.restart_alt_rounded, size: 16),
-                      label: const Text('Muat Contoh'),
-                    ),
-                  ],
+                OutlinedButton.icon(
+                  onPressed: () {
+                    showDialog(
+                      context: ctx,
+                      builder: (confirmCtx) => AlertDialog(
+                        title: const Text('Hapus semua data?'),
+                        content: const Text('Semua task, jadwal, aktivitas, dokumentasi, dan catatan belajar akan dihapus permanen dari perangkat ini. Tindakan ini tidak bisa dibatalkan.'),
+                        actions: [
+                          TextButton(
+                            onPressed: () => Navigator.pop(confirmCtx),
+                            child: const Text('Batal'),
+                          ),
+                          TextButton(
+                            onPressed: () {
+                              vm.clearAllData();
+                              Navigator.pop(confirmCtx);
+                              Navigator.pop(ctx);
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(content: Text('Semua data berhasil dihapus.'), behavior: SnackBarBehavior.floating),
+                              );
+                            },
+                            child: const Text('Hapus', style: TextStyle(color: Colors.red)),
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                  icon: const Icon(Icons.delete_sweep_outlined, size: 16, color: Colors.red),
+                  label: const Text('Hapus Semua Data', style: TextStyle(color: Colors.red)),
                 ),
               ],
             ),
@@ -151,6 +154,44 @@ class _OverviewPageState extends State<OverviewPage> {
 
     if (vm.isLoading) {
       return const Center(child: CircularProgressIndicator());
+    }
+
+    if (vm.loadError != null) {
+      return Scaffold(
+        backgroundColor: AppColors.background,
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(32),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.error_outline_rounded, size: 48, color: Colors.redAccent),
+                const SizedBox(height: 12),
+                Text(
+                  'Gagal memuat data',
+                  style: GoogleFonts.plusJakartaSans(fontSize: 16, fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  vm.loadError!,
+                  textAlign: TextAlign.center,
+                  style: GoogleFonts.plusJakartaSans(fontSize: 12, color: AppColors.textSecondary),
+                ),
+                const SizedBox(height: 16),
+                ElevatedButton.icon(
+                  onPressed: () => vm.retryLoad(),
+                  icon: const Icon(Icons.refresh_rounded, size: 16),
+                  label: const Text('Coba Lagi'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    foregroundColor: Colors.white,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
     }
 
     return Scaffold(

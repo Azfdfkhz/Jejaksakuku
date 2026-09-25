@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
+import 'package:collection/collection.dart';
 import 'package:jejak_saku/ui/core/theme/app_colors.dart';
 import 'package:jejak_saku/ui/features/overview/view_models/overview_view_model.dart';
+import 'package:jejak_saku/data/services/documentation_storage_service.dart';
 import 'package:jejak_saku/domain/models/models.dart';
 
 class CommandMessageItem {
@@ -254,24 +256,44 @@ class _MobileCompanionSheetState extends State<MobileCompanionSheet> {
               children: [
                 Text('Foto Dokumentasi PKL', style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w600, fontSize: 13)),
                 const SizedBox(height: 4),
-                Text('Terhubung otomatis dengan task aktif: "Revisi Website"', style: GoogleFonts.plusJakartaSans(fontSize: 11, color: AppColors.textSecondary)),
+                Builder(builder: (ctx) {
+                  final activeTask = vm.todayTasks
+                      .where((t) => t.status == TaskStatus.inProgress)
+                      .cast<Task?>()
+                      .firstOrNull;
+                  return Text(
+                    activeTask != null
+                        ? 'Akan dihubungkan dengan task aktif: "${activeTask.title}"'
+                        : 'Belum ada task yang sedang berjalan — dokumentasi disimpan tanpa link task.',
+                    style: GoogleFonts.plusJakartaSans(fontSize: 11, color: AppColors.textSecondary),
+                  );
+                }),
                 const SizedBox(height: 10),
                 ElevatedButton.icon(
-                  onPressed: () {
+                  onPressed: () async {
+                    final picked = await DocumentationStorageService.pickImageFile(fromCamera: true);
+                    if (picked == null) return;
+                    final savedPath = await DocumentationStorageService.saveImageFile(picked);
+                    final activeTask = vm.todayTasks
+                        .where((t) => t.status == TaskStatus.inProgress)
+                        .cast<Task?>()
+                        .firstOrNull;
                     final doc = Documentation(
-                      activityId: 'a3',
-                      imagePath: 'assets/doc_mobile.png',
-                      description: 'Dokumentasi perbaikan responsive navbar dari mobile',
-                      date: DateTime(2026, 9, 25),
-                      time: DateTime(2026, 9, 25, 14, 30),
-                      tags: ['Mobile', 'Navbar', 'Responsive'],
+                      imagePath: savedPath,
+                      description: activeTask != null
+                          ? 'Dokumentasi untuk task: ${activeTask.title}'
+                          : 'Dokumentasi via Mobile Field Companion',
+                      date: DateTime.now(),
+                      time: DateTime.now(),
+                      tags: const ['Mobile'],
                     );
                     vm.addDocumentation(doc);
+                    if (!mounted) return;
                     setState(() {
                       _messages.add(
                         CommandMessageItem(
                           isUser: false,
-                          text: '✓ Dokumentasi berhasil disimpan & terhubung dengan aktivitas PKL.',
+                          text: '✓ Foto tersimpan di disk & dokumentasi tercatat${activeTask != null ? ' (terhubung task "${activeTask.title}").' : '.'}',
                         ),
                       );
                     });
@@ -306,22 +328,25 @@ class _MobileCompanionSheetState extends State<MobileCompanionSheet> {
       return;
     }
 
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
     final newAct = Activity(
       title: desc,
       description: 'Dicatat via Mobile Field Companion',
-      date: DateTime(2026, 9, 25),
-      startTime: DateTime(2026, 9, 25, 14, 0),
-      endTime: DateTime(2026, 9, 25, 15, 30),
+      date: today,
+      startTime: now,
+      endTime: now.add(const Duration(minutes: 30)),
       category: TaskCategory.pkl,
       isCompleted: true,
     );
     vm.addActivity(newAct);
 
+    final timeStr = '${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}';
     setState(() {
       _messages.add(
         CommandMessageItem(
           isUser: false,
-          text: '✓ Aktivitas PKL tersimpan: "$desc" (14:00 - 15:30). Data otomatis tersedia untuk laporan & presentasi.',
+          text: '✓ Aktivitas PKL tersimpan: "$desc" ($timeStr). Data otomatis tersedia untuk laporan & presentasi.',
         ),
       );
     });
@@ -340,8 +365,9 @@ class _MobileCompanionSheetState extends State<MobileCompanionSheet> {
       return;
     }
 
+    final activeSession = vm.currentLearningSession;
     final newNote = LearningNote(
-      sessionId: 's4',
+      sessionId: activeSession?.id,
       content: note,
     );
     vm.addLearningNote(newNote);
@@ -357,41 +383,69 @@ class _MobileCompanionSheetState extends State<MobileCompanionSheet> {
   }
 
   void _respondBelajar(OverviewViewModel vm) {
+    final session = vm.currentLearningSession;
+    final task = session != null ? vm.getTaskForSchedule(session) : null;
+
+    if (session == null || task == null) {
+      setState(() {
+        _messages.add(
+          CommandMessageItem(
+            isUser: false,
+            text: 'Belum ada sesi belajar yang dijadwalkan hari ini. Tambahkan lewat halaman Schedule di desktop/mobile.',
+          ),
+        );
+      });
+      return;
+    }
+
+    final timeStr = '${session.startTime.hour.toString().padLeft(2, '0')}:${session.startTime.minute.toString().padLeft(2, '0')} - '
+        '${session.endTime.hour.toString().padLeft(2, '0')}:${session.endTime.minute.toString().padLeft(2, '0')}';
+    final durationMin = session.endTime.difference(session.startTime).inMinutes;
+
     setState(() {
       _messages.add(
         CommandMessageItem(
           isUser: false,
           text: 'Sesi Belajar Hari Ini:',
-          customContent: Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: AppColors.learningPurple.withValues(alpha: 0.08),
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: AppColors.learningPurple.withValues(alpha: 0.3)),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('Next.js - Server Components', style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold, fontSize: 13, color: AppColors.learningPurple)),
-                const SizedBox(height: 4),
-                Text('Jadwal: 19:00 - 20:00 (60 menit)', style: GoogleFonts.plusJakartaSans(fontSize: 12)),
-                const SizedBox(height: 8),
-                ElevatedButton(
-                  onPressed: () {
-                    setState(() {
-                      _messages.add(CommandMessageItem(isUser: false, text: '✓ Sesi belajar Next.js dimulai! Fokus dan catat temuan penting.'));
-                    });
-                    _scrollToBottom();
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.learningPurple,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                  ),
-                  child: const Text('Mulai Sekarang'),
+          customContent: StatefulBuilder(
+            builder: (ctx, setLocalState) {
+              final isStarted = task.status == TaskStatus.inProgress;
+              return Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: AppColors.learningPurple.withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: AppColors.learningPurple.withValues(alpha: 0.3)),
                 ),
-              ],
-            ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(task.title, style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold, fontSize: 13, color: AppColors.learningPurple)),
+                    const SizedBox(height: 4),
+                    Text('Jadwal: $timeStr ($durationMin menit)', style: GoogleFonts.plusJakartaSans(fontSize: 12)),
+                    const SizedBox(height: 8),
+                    ElevatedButton(
+                      onPressed: isStarted
+                          ? null
+                          : () {
+                              vm.editTask(task.copyWith(status: TaskStatus.inProgress));
+                              setLocalState(() {});
+                              setState(() {
+                                _messages.add(CommandMessageItem(isUser: false, text: '✓ Sesi belajar "${task.title}" dimulai! Fokus dan catat temuan penting.'));
+                              });
+                              _scrollToBottom();
+                            },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.learningPurple,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                      ),
+                      child: Text(isStarted ? 'Sedang Berjalan' : 'Mulai Sekarang'),
+                    ),
+                  ],
+                ),
+              );
+            },
           ),
         ),
       );
@@ -399,11 +453,38 @@ class _MobileCompanionSheetState extends State<MobileCompanionSheet> {
   }
 
   void _respondBesok(OverviewViewModel vm) {
+    final now = DateTime.now();
+    final tomorrow = DateTime(now.year, now.month, now.day).add(const Duration(days: 1));
+    final schedules = vm.upcomingSchedules.where((s) {
+      final d = s.date;
+      return d.year == tomorrow.year && d.month == tomorrow.month && d.day == tomorrow.day;
+    }).toList()
+      ..sort((a, b) => a.startTime.compareTo(b.startTime));
+
+    if (schedules.isEmpty) {
+      setState(() {
+        _messages.add(
+          CommandMessageItem(
+            isUser: false,
+            text: 'Belum ada rencana kegiatan untuk besok. Tambahkan task/jadwal di halaman Schedule.',
+          ),
+        );
+      });
+      return;
+    }
+
+    final lines = schedules.map((s) {
+      final task = vm.getTaskForSchedule(s);
+      final timeStr = '${s.startTime.hour.toString().padLeft(2, '0')}:${s.startTime.minute.toString().padLeft(2, '0')} - '
+          '${s.endTime.hour.toString().padLeft(2, '0')}:${s.endTime.minute.toString().padLeft(2, '0')}';
+      return '• $timeStr  ${task?.title ?? "Kegiatan"}';
+    }).join('\n');
+
     setState(() {
       _messages.add(
         CommandMessageItem(
           isUser: false,
-          text: 'Rencana Kegiatan Besok (Jumat, 26 September 2026):\n\n• 08:00 - 10:00  PKL - Pengembangan Fitur\n• 11:00 - 12:00  Review Dokumentasi Mingguan\n• 19:00 - 20:00  Belajar UI/UX Design System',
+          text: 'Rencana Kegiatan Besok:\n\n$lines',
         ),
       );
     });
